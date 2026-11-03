@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from app.exchanges.binance.schemas import BinanceTickerPriceResponse
+
 from app.exchanges.binance.normalizer import normalize_ticker_price
+from app.exchanges.binance.schemas import BinanceTickerPriceResponse
+
 
 def test_normalize_ticker_price():
     response = BinanceTickerPriceResponse(

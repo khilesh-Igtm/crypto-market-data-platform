@@ -1,9 +1,6 @@
 from datetime import datetime, timezone
 
-from app.exchanges.binance.schemas import (
-    BinanceTickerPriceResponse
-)
-
+from app.exchanges.binance.schemas import BinanceTickerPriceResponse
 from app.market_data.schemas import MarketPrice
 
 

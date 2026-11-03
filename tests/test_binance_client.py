@@ -1,11 +1,18 @@
+from decimal import Decimal
+
 import httpx
 import pytest
-from decimal import Decimal
+
 from app.exchanges.binance.client import BinanceClient
 from app.exchanges.exceptions import (
-    ExchangeAPIError, ExchangeRateLimitError, ExchangeUnavailableError,
-    ExchangeTimeoutError, ExchangeResponseError, ExchangeConnectionError
+    ExchangeAPIError,
+    ExchangeConnectionError,
+    ExchangeRateLimitError,
+    ExchangeResponseError,
+    ExchangeTimeoutError,
+    ExchangeUnavailableError,
 )
+
 
 # Ye fixture ek fake client banata hai bina asli internet use kiye
 @pytest.fixture
@@ -20,7 +27,10 @@ async def test_get_ticker_price(client_factory):
     def handler(request):
         assert request.url.path == "/api/v3/ticker/price"
         assert request.url.params["symbol"] == "BTCUSDT"
-        return httpx.Response(200, json={"symbol": "BTCUSDT", "price": "77236.01000000"}, request=request)
+        return httpx.Response(
+            200,
+            json={"symbol": "BTCUSDT", "price": "77236.01000000"},
+            request=request)
     
     client = client_factory(handler)
     response = await client.get_ticker_price("BTCUSDT")
@@ -37,7 +47,9 @@ async def test_get_ticker_price(client_factory):
 ])
 async def test_http_errors(client_factory, status_code, expected_exception):
     def handler(request):
-        return httpx.Response(status_code, json={"error": "Something went wrong"}, request=request)
+        return httpx.Response(status_code, 
+        json={"error": "Something went wrong"}, 
+        request=request)
     
     client = client_factory(handler)
     with pytest.raises(expected_exception):
@@ -55,7 +67,9 @@ async def test_timeout_error(client_factory):
 # Test 4: Invalid JSON/Data Error
 async def test_invalid_response(client_factory):
     def handler(request):
-        return httpx.Response(200, json={"symbol": "BTCUSDT", "price": "invalid"}, request=request)
+        return httpx.Response(200, 
+        json={"symbol": "BTCUSDT", "price": "invalid"}, 
+        request=request)
     
     client = client_factory(handler)
     with pytest.raises(ExchangeResponseError):

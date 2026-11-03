@@ -1,17 +1,14 @@
 import httpx
 from pydantic import ValidationError
 
-from app.exchanges.binance.schemas import (
-    BinanceTickerPriceResponse
-)
-
+from app.exchanges.binance.schemas import BinanceTickerPriceResponse
 from app.exchanges.exceptions import (
-    ExchangeTimeoutError,
+    ExchangeAPIError,
     ExchangeConnectionError,
     ExchangeRateLimitError,
-    ExchangeUnavailableError,
-    ExchangeAPIError,
     ExchangeResponseError,
+    ExchangeTimeoutError,
+    ExchangeUnavailableError,
 )
 
 
