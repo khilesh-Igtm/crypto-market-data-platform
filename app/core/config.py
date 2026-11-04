@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     database_user: str = "crypto_app"
     database_password: SecretStr
 
+    redis_url: str = "redis://localhost:6379/0"
+    latest_price_cache_ttl: int = 5
+    history_cache_ttl: int = 60
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

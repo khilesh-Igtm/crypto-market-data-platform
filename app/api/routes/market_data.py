@@ -4,6 +4,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cache.dependencies import get_redis_cache
+from app.cache.redis import RedisCache
 from app.db.session import get_db_session
 from app.market_data.schemas import (
     MarketPriceHistoryResponse,
@@ -28,15 +30,14 @@ async def latest_market_price(
     symbol: Annotated[str, Path(min_length=1, max_length=30)],
     exchange: Annotated[str, Query(min_length=1, max_length=50)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    cache: Annotated[RedisCache, Depends(get_redis_cache)],
 ) -> MarketPriceResponse:
-    """
-    Retrieve the latest market price for an exchange and symbol.
-    """
 
     record = await get_latest_market_price(
         session=session,
         exchange_name=exchange,
         symbol=symbol,
+        cache=cache,
     )
 
     if record is None:
@@ -45,7 +46,7 @@ async def latest_market_price(
             detail="Market price not found",
         )
 
-    return MarketPriceResponse.model_validate(record)
+    return record
 
 
 @router.get(
@@ -56,6 +57,7 @@ async def market_price_history(
     symbol: Annotated[str, Path(min_length=1, max_length=30)],
     exchange: Annotated[str, Query(min_length=1, max_length=50)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    cache: Annotated[RedisCache, Depends(get_redis_cache)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
     start_time: datetime | None = None,
@@ -80,6 +82,7 @@ async def market_price_history(
         offset=offset,
         start_time=start_time,
         end_time=end_time,
+        cache=cache,
     )
 
     has_more = len(records) > limit
@@ -91,8 +94,5 @@ async def market_price_history(
         limit=limit,
         offset=offset,
         has_more=has_more,
-        prices=[
-            MarketPriceResponse.model_validate(record)
-            for record in records
-        ],
+        prices=records,
     )
