@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import Exchange, MarketPriceRecord
 from app.market_data.schemas import MarketPrice
@@ -59,6 +62,7 @@ class MarketDataRepository:
 
         statement = (
             select(MarketPriceRecord)
+            .options(selectinload(MarketPriceRecord.exchange))
             .join(Exchange)
             .where(
                 Exchange.name == exchange_name,
@@ -75,30 +79,43 @@ class MarketDataRepository:
 
         return result.scalar_one_or_none()
 
+
     async def get_price_history(
         self,
         exchange_name: str,
         symbol: str,
         limit: int = 100,
+        offset: int = 0,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
     ) -> list[MarketPriceRecord]:
-
+        # Ye validation test_invalid_history_limit ko pass karne ke liye zaroori hai
         if limit <= 0:
             raise ValueError("Limit must be greater than zero")
 
         statement = (
             select(MarketPriceRecord)
             .join(Exchange)
+            .options(selectinload(MarketPriceRecord.exchange))
             .where(
                 Exchange.name == exchange_name,
                 MarketPriceRecord.symbol == symbol,
             )
-            .order_by(
+        )
+
+        if start_time is not None:
+            statement = statement.where(MarketPriceRecord.fetched_at >= start_time)
+        if end_time is not None:
+            statement = statement.where(MarketPriceRecord.fetched_at <= end_time)
+
+        statement = (
+            statement.order_by(
                 MarketPriceRecord.fetched_at.desc(),
                 MarketPriceRecord.id.desc(),
             )
+            .offset(offset)
             .limit(limit)
         )
 
         result = await self.session.execute(statement)
-
         return list(result.scalars().all())
