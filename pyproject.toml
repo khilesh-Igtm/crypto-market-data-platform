@@ -49,3 +49,7 @@ branch = true
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
