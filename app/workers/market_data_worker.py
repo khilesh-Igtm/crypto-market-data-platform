@@ -4,6 +4,7 @@ import signal
 from collections.abc import Callable
 
 from redis.asyncio import Redis
+from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache.redis import RedisCache
@@ -17,10 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 def parse_symbols(value: str) -> list[str]:
-    """
-    Parse comma-separated symbols and remove duplicates.
-    """
-
     symbols = [
         symbol.strip().upper()
         for symbol in value.split(",")
@@ -31,10 +28,6 @@ def parse_symbols(value: str) -> list[str]:
 
 
 class MarketDataIngestionWorker:
-    """
-    Continuously fetches market prices from Binance
-    and persists them in PostgreSQL.
-    """
 
     def __init__(
         self,
@@ -63,28 +56,63 @@ class MarketDataIngestionWorker:
 
         self.stop_event = stop_event or asyncio.Event()
 
+        self.database_max_retries = settings.database_max_retries
+        self.database_retry_base = settings.database_retry_base_seconds
+
         if not self.symbols:
-            raise ValueError("At least one ingestion symbol is required.")
+            raise ValueError(
+                "At least one ingestion symbol is required."
+            )
 
         if self.poll_interval <= 0:
-            raise ValueError("Poll interval must be greater than zero.")
+            raise ValueError(
+                "Poll interval must be greater than zero."
+            )
+
+    async def _persist_with_retry(self, market_price) -> None:
+        """
+        Retry transient PostgreSQL connection failures.
+
+        A fresh session is created for every attempt.
+        """
+
+        for attempt in range(self.database_max_retries + 1):
+
+            try:
+                async with self.session_factory() as session:
+                    await persist_market_price(
+                        session=session,
+                        market_price=market_price,
+                        cache=self.cache,
+                    )
+
+                return
+
+            except (OperationalError, InterfaceError):
+                if attempt >= self.database_max_retries:
+                    raise
+
+                delay = self.database_retry_base * (2 ** attempt)
+
+                logger.warning(
+                    "Database connection failed for %s. "
+                    "Retry %s/%s in %.2f seconds.",
+                    market_price.symbol,
+                    attempt + 1,
+                    self.database_max_retries,
+                    delay,
+                    exc_info=True,
+                )
+
+                await asyncio.sleep(delay)
 
     async def ingest_symbol(self, symbol: str) -> bool:
-        """
-        Fetch, normalize and persist one symbol.
-        """
-
         try:
             response = await self.client.get_ticker_price(symbol)
 
             market_price = normalize_ticker_price(response)
 
-            async with self.session_factory() as session:
-                await persist_market_price(
-                    session=session,
-                    market_price=market_price,
-                    cache=self.cache,
-                )
+            await self._persist_with_retry(market_price)
 
             logger.info(
                 "Market price persisted: %s = %s",
@@ -105,11 +133,6 @@ class MarketDataIngestionWorker:
             return False
 
     async def ingest_once(self) -> int:
-        """
-        Execute one ingestion cycle for all configured symbols.
-
-        Returns the number of successfully ingested symbols.
-        """
 
         results = await asyncio.gather(
             *(
@@ -129,17 +152,16 @@ class MarketDataIngestionWorker:
         return successful
 
     async def run(self) -> None:
-        """
-        Run ingestion continuously until shutdown is requested.
-        """
 
         logger.info(
-            "Starting market data worker. Symbols: %s | Interval: %s seconds",
+            "Starting market data worker. "
+            "Symbols: %s | Interval: %s seconds",
             ", ".join(self.symbols),
             self.poll_interval,
         )
 
         while not self.stop_event.is_set():
+
             cycle_started = asyncio.get_running_loop().time()
 
             await self.ingest_once()
@@ -148,7 +170,6 @@ class MarketDataIngestionWorker:
                 asyncio.get_running_loop().time() - cycle_started
             )
 
-            # Maintain the configured polling interval.
             wait_time = max(
                 0,
                 self.poll_interval - elapsed,
@@ -167,15 +188,12 @@ class MarketDataIngestionWorker:
 
 
 async def main() -> None:
-    """
-    Initialize resources and run the independent worker.
-    """
 
     settings = get_settings()
+
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
-    # Handle Ctrl+C and termination signals.
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(
@@ -198,19 +216,21 @@ async def main() -> None:
         socket_timeout=1,
     )
 
-    cache = RedisCache(redis_client)
-
-    worker = MarketDataIngestionWorker(
-        cache=cache,
-        stop_event=stop_event,
-    )
-
     try:
+        cache = RedisCache(redis_client)
+
+        worker = MarketDataIngestionWorker(
+            cache=cache,
+            stop_event=stop_event,
+        )
+
         await worker.run()
 
     finally:
-        await redis_client.aclose()
-        await engine.dispose()
+        try:
+            await redis_client.aclose()
+        finally:
+            await engine.dispose()
 
 
 if __name__ == "__main__":

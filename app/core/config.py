@@ -39,6 +39,34 @@ class Settings(BaseSettings):
         gt=0,
     )
 
+        # Exchange resilience
+    binance_request_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+    )
+    exchange_max_retries: int = Field(
+        default=2,
+        ge=0,
+    )
+    exchange_retry_base_seconds: float = Field(
+        default=0.5,
+        gt=0,
+    )
+    exchange_retry_max_seconds: float = Field(
+        default=5.0,
+        gt=0,
+    )
+
+    # Database resilience
+    database_max_retries: int = Field(
+        default=2,
+        ge=0,
+    )
+    database_retry_base_seconds: float = Field(
+        default=0.5,
+        gt=0,
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

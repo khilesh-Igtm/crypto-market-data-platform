@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import asyncio
+from datetime import timezone
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -48,6 +49,8 @@ async def test_ingest_symbol_persists_market_price(monkeypatch):
         lambda: SimpleNamespace(
             ingestion_symbols="BTCUSDT,ETHUSDT",
             ingestion_poll_interval_seconds=5.0,
+            database_max_retries=2,
+            database_retry_base_seconds=0.5,
         ),
     )
 
@@ -93,6 +96,8 @@ async def test_ingest_symbol_handles_exchange_failure(monkeypatch):
         lambda: SimpleNamespace(
             ingestion_symbols="BTCUSDT",
             ingestion_poll_interval_seconds=5.0,
+            database_max_retries=2,
+            database_retry_base_seconds=0.5,
         ),
     )
 
@@ -109,3 +114,31 @@ async def test_ingest_symbol_handles_exchange_failure(monkeypatch):
     result = await worker.ingest_symbol("BTCUSDT")
 
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_worker_does_not_start_when_shutdown_requested(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        worker_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ingestion_symbols="BTCUSDT",
+            ingestion_poll_interval_seconds=5.0,
+            database_max_retries=2,
+            database_retry_base_seconds=0.5,
+        ),
+    )
+
+    stop_event = asyncio.Event()
+    stop_event.set()
+
+    worker = MarketDataIngestionWorker(
+        client=FakeClient(),
+        session_factory=FakeSession,
+        symbols=["BTCUSDT"],
+        stop_event=stop_event,
+    )
+
+    await worker.run()
