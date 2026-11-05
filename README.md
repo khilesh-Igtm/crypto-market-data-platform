@@ -115,3 +115,17 @@ Configure the following environment variables:
 ```env
 INGESTION_SYMBOLS=BTCUSDT,ETHUSDT
 INGESTION_POLL_INTERVAL_SECONDS=5
+
+
+## Testing and Code Quality
+
+### Requirements
+
+- Python 3.12+
+- PostgreSQL
+- uv
+
+### Run all tests
+
+```bash
+uv run pytest -v

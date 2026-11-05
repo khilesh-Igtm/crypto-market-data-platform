@@ -44,8 +44,10 @@ class MarketDataIngestionWorker:
         self.session_factory = session_factory or AsyncSessionFactory
         self.cache = cache
 
-        self.symbols = symbols or parse_symbols(
-            settings.ingestion_symbols
+        self.symbols = (
+            symbols
+            if symbols is not None
+            else parse_symbols(settings.ingestion_symbols)
         )
 
         self.poll_interval = (
