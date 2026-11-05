@@ -1,16 +1,13 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """
     Application-wide configuration.
-
-    Values are loaded from environment variables
-    or the local .env file.
     """
 
     app_name: str = "Crypto Market Data Platform"
@@ -19,14 +16,12 @@ class Settings(BaseSettings):
         "local",
         "development",
         "staging",
-        "production"
+        "production",
     ] = "local"
 
     debug: bool = False
-
     api_v1_prefix: str = "/api/v1"
 
-    # Database configuration yahan aayega (class ke andar)
     database_host: str = "localhost"
     database_port: int = 5432
     database_name: str = "crypto_market_data"
@@ -36,6 +31,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     latest_price_cache_ttl: int = 5
     history_cache_ttl: int = 60
+
+    # Background ingestion configuration
+    ingestion_symbols: str = "BTCUSDT,ETHUSDT"
+    ingestion_poll_interval_seconds: float = Field(
+        default=5.0,
+        gt=0,
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -47,7 +49,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """
-    Return cached application settings.
-    """
     return Settings()

@@ -91,3 +91,27 @@ Redis failures fall back to PostgreSQL.
 ## Redis Shutdown
 
     docker compose stop redis
+
+## Background Market Data Ingestion
+
+The platform supports independent background market-data ingestion
+through a dedicated worker.
+
+### Features
+
+- Fetches ticker prices from Binance REST API.
+- Supports multiple configurable trading symbols.
+- Concurrent ingestion of configured symbols.
+- Normalizes exchange responses into the internal MarketPrice schema.
+- Persists market prices in PostgreSQL.
+- Invalidates related Redis cache entries after persistence.
+- Handles individual symbol failures without stopping other symbols.
+- Supports graceful shutdown.
+
+### Configuration
+
+Configure the following environment variables:
+
+```env
+INGESTION_SYMBOLS=BTCUSDT,ETHUSDT
+INGESTION_POLL_INTERVAL_SECONDS=5
